@@ -86,8 +86,6 @@ COPY --chown=mayan:mayan \
     setup.py \
     /src/
 
-COPY --chown=mayan:mayan mayan /src/mayan
-
 # Install development packages needed to build the Python packages
 RUN DEBIAN_FRONTEND=noninteractive \
 apt-get install -y --no-install-recommends \
@@ -127,12 +125,32 @@ RUN set -a \
 ; fi \
 # Install the Python packages needed to build Mayan EDMS
 && pip install --no-cache-dir -r /src/requirements/build.txt \
+&& pip install --no-cache-dir -r /src/requirements/common.txt \
+&& pip install --no-cache-dir -r /src/requirements/base.txt
+
+# Copy over enough to run installdependencies
+COPY --chown=mayan:mayan mayan/__init__.py /src/mayan/__init__.py
+COPY --chown=mayan:mayan mayan/bin /src/mayan/bin
+COPY --chown=mayan:mayan mayan/apps/dependencies /src/mayan/apps/dependencies
+
+# Install the static content
+RUN set -a \
+&& . /config.env \
+&& set +a \
+&& . "${PROJECT_INSTALL_DIR}/bin/activate" \
+mayan-edms.py installdependencies
+
+# Copy rest of source code
+COPY --chown=mayan:mayan mayan/ /src/mayan
+
+RUN set -a \
+&& . /config.env \
+&& set +a \
+&& . "${PROJECT_INSTALL_DIR}/bin/activate" \
 # Build Mayan EDMS
 && python3 setup.py sdist \
 # Install the built Mayan EDMS package
 && pip install --no-cache-dir dist/mayan* \
-# Install the static content
-&& mayan-edms.py installdependencies \
 && MAYAN_STATIC_ROOT=${PROJECT_INSTALL_DIR}/static mayan-edms.py preparestatic --link --noinput
 
 COPY --chown=mayan:mayan requirements/testing-base.txt "${PROJECT_INSTALL_DIR}"
